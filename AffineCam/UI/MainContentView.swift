@@ -7,15 +7,28 @@ struct MainContentView: View {
     var body: some View {
         VStack {
             if let frame = viewModel.currentFrame {
-                Text("Frame received: \(frame.presentationTimeStamp.seconds)")
-                    .font(.caption)
-                    .monospaced()
+                MetalView(frame: frame)
+                    .edgesIgnoringSafeArea(.all)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+//                    .aspectRatio(contentMode: .fill)
+//                    .clipShape(RoundedRectangle(cornerRadius: 15))
             } else {
-                Text("Waiting for camera...")
-                    .foregroundStyle(.secondary)
+                ProgressView("Initializing Hardware...")
             }
         }
-        .onAppear { viewModel.startSession() }
+//        VStack {
+//            if let frame = viewModel.currentFrame {
+//                Text("Frame received: \(frame.presentationTimeStamp.seconds)")
+//                    .font(.caption)
+//                    .monospaced()
+//            } else {
+//                Text("Waiting for camera...")
+//                    .foregroundStyle(.secondary)
+//            }
+//        }
+        .onAppear {
+            viewModel.startSession()
+        }
     }
 }
 

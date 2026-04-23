@@ -1,4 +1,5 @@
 import CoreMedia
+import CoreMotion
 
 @MainActor
 @Observable
