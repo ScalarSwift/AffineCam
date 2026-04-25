@@ -1,53 +1,58 @@
 import AVFoundation
-import CoreMedia
 import UIKit
 
 actor MockCameraEngine: EngineProvider {
-    private let frameSource = MockFrameSource()
-    nonisolated var frameStream: AsyncStream<CMSampleBuffer> {
-        frameSource.stream
-    }
-
-    func start() async {
-        Task.detached(priority: .userInitiated) {
-            await self.frameSource.startMocking()
-        }
-    }
-
-    private nonisolated final class MockFrameSource: @unchecked Sendable {
-        private var continuation: AsyncStream<CMSampleBuffer>.Continuation?
-        let stream: AsyncStream<CMSampleBuffer>
-
-        init() {
-            let (stream, continuation) = AsyncStream.makeStream(of: CMSampleBuffer.self)
-            self.stream = stream
-            self.continuation = continuation
-        }
-
-        func startMocking() async {
-            while true {
-                generateFakeFrame()
+    private var mockTask: Task<Void, Never>?
+    
+    func start(frameInbox: FrameInbox) async {
+        guard mockTask == nil else { return }
+        
+        mockTask = Task.detached(priority: .userInitiated) {
+            let frameGenerator = MockFrameGenerator()
+            
+            while !Task.isCancelled {
+                if let sampleBuffer = frameGenerator.makeFrame() {
+                    frameInbox.enqueue(sampleBuffer)
+                }
+                
                 try? await Task.sleep(nanoseconds: 33_333_333)
             }
         }
-
-        private func generateFakeFrame() {
-            let (width, height) = (640, 480)
+    }
+    
+    /// Synthetic frame generator used in Simulator.
+    /// Runs on a detached task and creates independent sample buffers, with no shared mutable state.
+    private nonisolated final class MockFrameGenerator: @unchecked Sendable {
+        func makeFrame() -> CMSampleBuffer? {
+            let width = 640
+            let height = 480
+            
             var pixelBuffer: CVPixelBuffer?
+            
+            let attributes: [CFString: Any] = [
+                kCVPixelBufferMetalCompatibilityKey: true,
+                kCVPixelBufferCGImageCompatibilityKey: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+                kCVPixelBufferIOSurfacePropertiesKey: [:]
+            ]
+            
             let status = CVPixelBufferCreate(
                 kCFAllocatorDefault,
                 width,
                 height,
                 kCVPixelFormatType_32BGRA,
-                nil,
+                attributes as CFDictionary,
                 &pixelBuffer
             )
+            
             guard status == kCVReturnSuccess, let buffer = pixelBuffer else {
-                return
+                return nil
             }
-
+            
             CVPixelBufferLockBaseAddress(buffer, [])
-            let context = CGContext(
+            defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+            
+            guard let context = CGContext(
                 data: CVPixelBufferGetBaseAddress(buffer),
                 width: width,
                 height: height,
@@ -55,48 +60,51 @@ actor MockCameraEngine: EngineProvider {
                 bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
                 space: CGColorSpaceCreateDeviceRGB(),
                 bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-                    | CGBitmapInfo.byteOrder32Little.rawValue
-            )
-            if let ctx = context {
-                ctx.setFillColor(UIColor.systemBlue.cgColor)
-                ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
-                let text = NSAttributedString(
-                    string: "\(Date().timeIntervalSince1970)",
-                    attributes: [
-                        .foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 30),
-                    ]
-                )
-                let line = CTLineCreateWithAttributedString(text)
-                ctx.textPosition = CGPoint(x: 50, y: 200)
-                CTLineDraw(line, ctx)
+                | CGBitmapInfo.byteOrder32Little.rawValue
+            ) else {
+                return nil
             }
-            CVPixelBufferUnlockBaseAddress(buffer, [])
-
-            var sampleBuffer: CMSampleBuffer?
+            
+            context.setFillColor(UIColor.systemBlue.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            
+            let text = NSAttributedString(
+                string: "Mock \(Date().formatted(date: .omitted, time: .standard))",
+                attributes: [
+                    .foregroundColor: UIColor.white,
+                    .font: UIFont.systemFont(ofSize: 30)
+                ]
+            )
+            
+            let line = CTLineCreateWithAttributedString(text)
+            context.textPosition = CGPoint(x: 50, y: 200)
+            CTLineDraw(line, context)
+            
             var timing = CMSampleTimingInfo(
                 duration: CMTime(value: 1, timescale: 30),
-                presentationTimeStamp: CMTime(
-                    value: Int64(Date().timeIntervalSince1970 * 1000),
-                    timescale: 1000
-                ),
+                presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
                 decodeTimeStamp: .invalid
             )
-            var formatDesc: CMFormatDescription?
+            
+            var formatDescription: CMFormatDescription?
             CMVideoFormatDescriptionCreateForImageBuffer(
                 allocator: kCFAllocatorDefault,
                 imageBuffer: buffer,
-                formatDescriptionOut: &formatDesc
+                formatDescriptionOut: &formatDescription
             )
-            if let format = formatDesc {
-                CMSampleBufferCreateReadyWithImageBuffer(
-                    allocator: kCFAllocatorDefault,
-                    imageBuffer: buffer,
-                    formatDescription: format,
-                    sampleTiming: &timing,
-                    sampleBufferOut: &sampleBuffer
-                )
-            }
-            if let sb = sampleBuffer { continuation?.yield(sb) }
+            
+            guard let formatDescription else { return nil }
+            
+            var sampleBuffer: CMSampleBuffer?
+            CMSampleBufferCreateReadyWithImageBuffer(
+                allocator: kCFAllocatorDefault,
+                imageBuffer: buffer,
+                formatDescription: formatDescription,
+                sampleTiming: &timing,
+                sampleBufferOut: &sampleBuffer
+            )
+            
+            return sampleBuffer
         }
     }
 }

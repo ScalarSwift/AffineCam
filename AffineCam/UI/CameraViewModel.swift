@@ -1,11 +1,14 @@
 import CoreMedia
-import CoreMotion
 
 @MainActor
 @Observable
-class CameraViewModel {
+final class CameraViewModel {
+    let renderer: CameraPreviewRenderer?
     private let engine: any EngineProvider
-    var currentFrame: CMSampleBuffer?
+
+    var errorMessage: String?
+
+    let previewCoordinator: MetalCameraPreview.Coordinator?
 
     init() {
         #if targetEnvironment(simulator)
@@ -13,14 +16,22 @@ class CameraViewModel {
         #else
             self.engine = CameraEngine()
         #endif
+        
+        do {
+            let renderer = try CameraPreviewRenderer()
+            self.renderer = renderer
+            previewCoordinator = MetalCameraPreview.Coordinator(renderer: renderer)
+
+        } catch {
+            self.renderer = nil
+            self.previewCoordinator = nil
+            self.errorMessage = error.localizedDescription
+        }
+
     }
 
     func startSession() {
-        Task {
-            await engine.start()
-            for await frame in engine.frameStream {
-                self.currentFrame = frame
-            }
-        }
+        guard let renderer else { return }
+        Task { await engine.start(frameInbox: renderer.frameInbox) }
     }
 }

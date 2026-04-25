@@ -12,46 +12,36 @@ kernel void passthrough(
     
     if (gid.x >= outW || gid.y >= outH) return;
     
-    float2 srcSize = float2(inTexture.get_width(), inTexture.get_height());   // actual buffer size
-    float2 dstSize = float2(outW, outH);                                      // drawable size
+    float2 srcSize = float2(inTexture.get_width(), inTexture.get_height());
+    float2 dstSize = float2(outW, outH);
     
-    // Size of the image as displayed after orientation is applied
     float2 dispSize = (orientation < 2)
-    ? float2(srcSize.y, srcSize.x)   // portrait / upside-down portrait
-    : float2(srcSize.x, srcSize.y);  // landscapes
+    ? float2(srcSize.y, srcSize.x)
+    : float2(srcSize.x, srcSize.y);
     
-    // Aspect-fill scale in PIXEL SPACE
     float scale = max(dstSize.x / dispSize.x, dstSize.y / dispSize.y);
     
-    // Current output pixel in centered destination-pixel coordinates
     float2 dstPx = float2(gid) + 0.5;
     
-    // Map output pixel -> displayed-image pixel coordinates
     float2 dispPx = (dstPx - dstSize * 0.5) / scale + dispSize * 0.5;
     
-    // Convert displayed-image pixel coordinates -> source-texture pixel coordinates
     float2 srcPx;
     
     switch (orientation) {
-        case 0: // portrait
-            // displayed size = (srcH, srcW)
+        case 0:
             srcPx = float2(dispPx.y, srcSize.y - dispPx.x);
             break;
-            
-        case 1: // portrait upside down
+        case 1:
             srcPx = float2(srcSize.x - dispPx.y, dispPx.x);
             break;
-            
-        case 2: // landscape left
+        case 2:
             srcPx = float2(srcSize.x - dispPx.x, srcSize.y - dispPx.y);
             break;
-            
-        default: // landscape right
+        default:
             srcPx = dispPx;
             break;
     }
     
-    // Convert source pixels -> normalized UV
     float2 uv = srcPx / srcSize;
     
     constexpr sampler s(address::clamp_to_edge, filter::linear);
