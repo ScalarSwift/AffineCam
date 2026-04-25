@@ -5,14 +5,21 @@ struct MainContentView: View {
     @State private var viewModel = CameraViewModel()
 
     var body: some View {
-        VStack {
-            if let frame = viewModel.currentFrame {
-                Text("Frame received: \(frame.presentationTimeStamp.seconds)")
-                    .font(.caption)
-                    .monospaced()
-            } else {
-                Text("Waiting for camera...")
-                    .foregroundStyle(.secondary)
+        ZStack {
+            if let coordinator = viewModel.previewCoordinator {
+                MetalCameraPreview(coordinator: coordinator)
+                    .ignoresSafeArea()
+            }
+            if let errorMessage = viewModel.errorMessage {
+                VStack {
+                    Spacer()
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .padding(12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding()
+                }
             }
         }
         .onAppear { viewModel.startSession() }
