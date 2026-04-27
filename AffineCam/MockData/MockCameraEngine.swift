@@ -20,6 +20,8 @@ actor MockCameraEngine: EngineProvider {
         }
     }
     
+    func stop() async {}
+    
     /// Synthetic frame generator used in Simulator.
     /// Runs on a detached task and creates independent sample buffers, with no shared mutable state.
     private nonisolated final class MockFrameGenerator: @unchecked Sendable {

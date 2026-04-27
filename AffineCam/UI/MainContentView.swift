@@ -21,8 +21,19 @@ struct MainContentView: View {
                         .padding()
                 }
             }
+            VStack {
+                Text(viewModel.recognizedDigits.isEmpty ? "Scanning for digits..." : viewModel.recognizedDigits)
+                    .font(.system(.title, design: .monospaced))
+                    .bold()
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(10)
+                    .padding(.top, 50)
+                Spacer()
+            }
         }
         .onAppear { viewModel.startSession() }
+        .onDisappear { viewModel.stopSession() }
     }
 }
 
