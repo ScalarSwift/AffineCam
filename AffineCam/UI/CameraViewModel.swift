@@ -63,7 +63,7 @@ final class CameraViewModel {
                 try? await Task.sleep(nanoseconds: 50_000_000)
                 continue
             }
-            let orientation = cameraBufferOrientation()
+            let orientation = cameraBufferOrientationForVision()
             if let result = await ocrProcessor.submit(
                 sampleBuffer: sampleBuffer,
                 orientation: orientation
@@ -76,7 +76,7 @@ final class CameraViewModel {
 
     /// Orientation of the raw camera buffer from AVCapture.
     /// This is independent from UI/preview rotation (handled in Metal).
-    private func cameraBufferOrientation() -> CGImagePropertyOrientation {
+    private func cameraBufferOrientationForVision() -> CGImagePropertyOrientation {
         .right
     }
 }
