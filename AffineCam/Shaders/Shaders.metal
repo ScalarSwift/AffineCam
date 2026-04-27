@@ -47,35 +47,3 @@ kernel void passthrough(
     constexpr sampler s(address::clamp_to_edge, filter::linear);
     outTexture.write(inTexture.sample(s, uv), gid);
 }
-
-// New Kernel for OCR Pre-processing
-kernel void adaptiveThreshold(
-                              texture2d<float, access::read> inTexture [[texture(0)]],
-                              texture2d<float, access::write> outTexture [[texture(1)]],
-                              uint2 gid [[thread_position_in_grid]]
-                              ) {
-    if (gid.x >= outTexture.get_width() || gid.y >= outTexture.get_height()) return;
-    
-    // Radius for local mean calculation
-    const int radius = 4;
-    float sum = 0.0;
-    float count = 0.0;
-    
-    // Local statistics calculation (Mechanical Sympathy: note the memory access patterns)
-    for (int i = -radius; i <= radius; i++) {
-        for (int j = -radius; j <= radius; j++) {
-            uint2 samplePos = uint2(clamp(int(gid.x) + i, 0, int(inTexture.get_width() - 1)),
-                                    clamp(int(gid.y) + j, 0, int(inTexture.get_height() - 1)));
-            float3 col = inTexture.read(samplePos).rgb;
-            sum += dot(col, float3(0.299, 0.587, 0.114)); // Grayscale conversion
-            count += 1.0;
-        }
-    }
-    
-    float localMean = sum / count;
-    float currentPixel = dot(inTexture.read(gid).rgb, float3(0.299, 0.587, 0.114));
-    
-    // Binarization: Black text (0.0) on White background (1.0)
-    float result = (currentPixel < (localMean - 0.02)) ? 0.0 : 1.0;
-    outTexture.write(float4(float3(result), 1.0), gid);
-}
