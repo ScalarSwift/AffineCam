@@ -38,7 +38,7 @@ struct MetalCameraPreview: UIViewRepresentable {
         }
     }
     
-    final class Coordinator: NSObject, MTKViewDelegate {
+    nonisolated final class Coordinator: NSObject, MTKViewDelegate {
         let renderer: CameraPreviewRenderer
         private let logger = Logger(subsystem: "AffineCam", category: "PreviewCoordinator")
         

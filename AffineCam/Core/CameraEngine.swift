@@ -23,6 +23,10 @@ actor CameraEngine: NSObject, EngineProvider {
         }
     }
     
+    func stop() async {
+        if session.isRunning { session.stopRunning() }
+    }
+    
     private func configureSessionIfNeeded() async throws {
         guard await checkPermissions() else {
             throw CameraError.notAuthorized
